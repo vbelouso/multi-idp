@@ -1,15 +1,17 @@
 # Identity and Agent Flow
 
-An approved Red Hat Single Sign-On (RH SSO) user sends an OpenID Connect (OIDC) ID token to Agent A. Agent A calls Agents C and B with the Agent-to-Agent (A2A) protocol. Internal and external Red Hat build of Keycloak (RHBK) issue tokens for those calls. Agent A uses the JSON Web Token (JWT) Authorization Grant and Token Exchange V2 to obtain them. The [Agent A implementation](../agents/agent_a.py) performs each operation in its own process.
+For the primary test, the acceptance runner sends the approved user's Red Hat Single Sign-On (RH SSO) OpenID Connect (OIDC) ID token to Agent A. Agent A runs in its own Deployment and performs the grants, exchanges, and peer calls. Internal and external Red Hat build of Keycloak (RHBK) issue target-specific tokens with the JSON Web Token (JWT) Authorization Grant and Token Exchange V2. Agent A calls Agents C and B with the Agent-to-Agent (A2A) protocol. Refer to the [Agent A implementation](../agents/agent_a.py) for its runtime behavior.
 
 ## Request and Token Sequence
 
 This diagram shows how the authorization servers issue tokens and how Agent A calls the other agents.
 
 ```text
-Approved Red Hat Single Sign-On user
-    |
-    | ID token and A2A request
+Stage RH SSO
+    | ID token for the approved user
+    v
+Acceptance runner
+    | A2A request with the ID token
     v
 Internal Agent A
     |
@@ -25,7 +27,7 @@ Internal Agent A
 Results from Agents C and B, with identity evidence
 ```
 
-The primary test runner sends an OpenID Connect (OIDC) ID token and a request to Agent A, then observes its execution. It does not obtain Agent A's downstream tokens or call Agents C and B in this scenario. Agent A completes the following steps:
+The acceptance runner sends the ID token to Agent A in an A2A request, then observes Agent A's execution. It does not obtain Agent A's downstream tokens or call Agents C and B in this scenario. Agent A completes the following steps:
 
 1. **Validate the OIDC ID token.** Agent A checks the signature, issuer, `cloud-services` audience, lifetime, and ID token type against the configured stage issuer.
 2. **Obtain T1.** Agent A authenticates as `agent-a-internal` and presents the ID token to Internal RHBK with the JWT Authorization Grant. The approved federation link selects the internal pilot user. Agent A checks the user, client, scopes, and signed origin claims.
@@ -34,7 +36,7 @@ The primary test runner sends an OpenID Connect (OIDC) ID token and a request to
 5. **Obtain T3.** Agent A authenticates as `agent-a-external` and presents T2 to External RHBK with the JWT Authorization Grant. The preconfigured identity link selects the external pilot user.
 6. **Call Agent B.** Agent A validates T3 and Agent B's Agent Card, then sends an A2A request with T3. Agent B checks the issuer, audience, user, authorized client, scope, permission, and signed provenance. Agent A returns the downstream results and token summaries.
 
-Agent A authenticates two Open Authorization (OAuth) clients. Both grants use `urn:ietf:params:oauth:grant-type:jwt-bearer`. Internal exchanges use `urn:ietf:params:oauth:grant-type:token-exchange`. A2A calls use the `SendMessage` operation with protocol version `1.0`.
+Agent A authenticates as two OAuth clients. Both JWT Authorization Grants use `urn:ietf:params:oauth:grant-type:jwt-bearer`. Internal exchanges use `urn:ietf:params:oauth:grant-type:token-exchange`. A2A calls use the `SendMessage` operation with protocol version `1.0`.
 
 ## Token and Identity Map
 
@@ -52,9 +54,9 @@ T1 carries both invocation scopes. TC carries `c.invoke`. T2 and T3 carry `partn
 
 ## Evidence of Successful Agent Calls
 
-A successful token endpoint response does not prove that an agent call succeeded. The runner checks the returned messages and nonces. It matches token identifiers with events from both Keycloak instances. It also correlates request IDs with processing logs from Agents A, B, and C.
+A successful token endpoint response does not prove that an agent call succeeded. The acceptance runner checks the returned messages and nonces. It matches token identifiers with events from both Keycloak instances. It also correlates request IDs with processing logs from Agents A, B, and C.
 
-The runner compares the approved trust before and after the primary request. It also checks that Agent A caused no administrative changes. Agent A returns token fingerprints and selected claims, not raw downstream bearer tokens.
+The acceptance runner compares the approved trust before and after the primary request. It also checks that Agent A caused no administrative changes. Agent A returns token fingerprints and selected claims, not raw downstream bearer tokens.
 
 The positive checks use short identifiers in the evidence files. The following table explains each check:
 
@@ -63,10 +65,10 @@ The positive checks use short identifiers in the evidence files. The following t
 | P1 | RH assertion to internal token | Agent A presents the approved ID token to Internal RHBK and receives T1 for the internal pilot user |
 | P2 | Internal to external token chain | Agent A uses T1 to obtain T2, then presents T2 to External RHBK and receives T3 for Agent B |
 | P3 | Agent A calls external Agent B | Agent B validates T3 and returns identity evidence for the A2A request |
-| P4 | Approved identity provenance | The runner correlates the approved user, both pilot users, Agent A's clients, agent logs, Keycloak events, and unchanged trust |
+| P4 | Approved identity provenance | The acceptance runner correlates the approved user, both pilot users, Agent A's clients, agent logs, Keycloak events, and unchanged trust |
 | P5 | External client authorization | External RHBK issues the configured authority, and Agent B rejects an unapproved OAuth client |
 | P6 | Agent A calls internal Agent C | Agent C validates the target-specific token and returns identity evidence for the A2A request |
 
-The N1–N20 regression tests run separately after the primary scenario. They use their own OAuth fixtures and administrative credentials. Some tests temporarily change lab settings and restore them. Refer to [test execution and evidence](operations.md#running-validation).
+The N1–N20 regression tests run after the primary scenario as direct grant and resource-server probes. The acceptance runner uses administrative credentials to configure and inspect these tests. Some tests temporarily change lab settings and restore them. Refer to [test execution and evidence](operations.md#running-validation).
 
 [Documentation index](INDEX.md).

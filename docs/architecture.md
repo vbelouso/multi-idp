@@ -22,11 +22,11 @@ The [agent manifests](../manifests/agents.yaml) run Python applications that use
 
 ## Realm Registrations
 
-Each realm has an issuer Uniform Resource Locator (URL) that identifies its authorization server. Open Authorization (OAuth) registrations define callers and token recipients.
+Each realm has an issuer Uniform Resource Locator (URL) that identifies its authorization server. OAuth registrations define callers and token recipients.
 
 | Registration | Realm | Purpose |
 | --- | --- | --- |
-| `agent-a-internal` | Internal | Agent A's client for the RH grant and internal exchanges |
+| `agent-a-internal` | Internal | Agent A's client for the RH SSO grant and internal exchanges |
 | `agent-c` | Internal | Audience for calls to Agent C |
 | External realm issuer URL | Internal | Audience target for assertions sent to External RHBK |
 | `agent-a-external` | External | Agent A's client for the external JWT grant |
@@ -48,7 +48,7 @@ Approved RH SSO issuer and subject
     -> External pilot user
 ```
 
-The approved subject comes from a local approval file. Bootstrap sets `origin_issuer`, `origin_sub`, `internal_sub`, and `provenance_version` as protected attributes. It rejects conflicting links and attribute values.
+The approved subject comes from a local approval file. Bootstrap sets `origin_issuer`, `origin_sub`, `internal_sub`, and `provenance_version` as protected attributes. It rejects a conflicting approved-user link or protected attribute value.
 
 Agent A receives its two OAuth client secrets. Its service account does not mount a Kubernetes application programming interface (API) token. Agent A does not call the administrative API in Keycloak. Agent B validates signed token claims without a provenance Secret created by the test runner.
 

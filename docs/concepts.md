@@ -1,6 +1,6 @@
 # Authorization and Identity Concepts
 
-This page explains the protocol choices and trust boundaries in the lab. The flow uses Open Authorization (OAuth) 2.0 with two Red Hat build of Keycloak (RHBK) authorization servers.
+This page explains the protocol choices and trust boundaries in the lab. The flow uses OAuth 2.0 with two Red Hat build of Keycloak (RHBK) authorization servers.
 
 ## Understanding Realm Issuer Audiences
 
@@ -22,7 +22,7 @@ The official [Keycloak identity-chaining guide](https://www.keycloak.org/securin
 
 The exchange request parameter `audience` differs from the JWT claim `aud`. Draft Section 2.3.1 defines the request's `resource` value as the authorization server's Uniform Resource Identifier (URI) and its `audience` value as the logical name. The Keycloak guide uses the URL as the registered client name. The draft does not define Keycloak client names.
 
-Draft Section 2.3.3 recommends one authorization-server audience for an assertion. The [Keycloak JWT Authorization Grant](https://www.keycloak.org/securing-apps/jwt-authorization-grant) rejects assertions with multiple audiences. T2 has one audience. T1 has two audiences before separate exchanges produce TC and T2. Refer to the [token map](flow.md#token-and-identity-map).
+Draft Section 2.3.3 recommends restricting an assertion to one authorization-server audience. The [Keycloak JWT Authorization Grant](https://www.keycloak.org/securing-apps/jwt-authorization-grant) rejects assertions with multiple audiences. T2 is the assertion sent to External RHBK, and it has one audience. T1 is an Internal RHBK access token with audiences for Agent C and External RHBK. Agent A exchanges T1 to obtain separate tokens for those targets. Refer to the [token map](flow.md#token-and-identity-map).
 
 ## Approving an Identity and Tracking Provenance
 
@@ -47,13 +47,13 @@ The Agent-to-Agent (A2A) flow provides trusted transitive provenance. It does no
 
 ## JSON Web Token Grant Identity Providers
 
-The `jwt-authorization-grant` Identity Provider type records issuer and signing-key trust for incoming assertions. Internal RHBK trusts Red Hat Single Sign-On. External RHBK trusts the internal issuer. The flow uses pre-established identity links and token endpoint requests. It does not use a browser login between the Keycloak realms.
+The `jwt-authorization-grant` Identity Provider type configures a realm to validate signed JWT assertions at its token endpoint. Its settings identify the trusted issuer and signing keys. Keycloak resolves the assertion subject through a pre-established federated identity link. Internal RHBK trusts Red Hat Single Sign-On. External RHBK trusts the internal issuer. This flow does not use a browser login between the Keycloak realms.
 
 Refer to the [Keycloak JWT Authorization Grant guide](https://www.keycloak.org/securing-apps/jwt-authorization-grant) for the provider type and linked-user requirement.
 
 ## External Client Authorization
 
-The external `unapproved-agent` test client shares the audience mapper and can obtain a token for the `agent-b` audience. Agent B enforces its approved-client policy by requiring `azp=agent-a-external`. Test N8 verifies that Agent B rejects a token from the other client.
+The external `unapproved-agent` test client has the `partner.invoke` scope, whose audience mapper adds `agent-b` to its tokens. It can obtain a token with `aud=agent-b`. Agent B enforces its approved-client policy by requiring `azp=agent-a-external`. Test N8 verifies that Agent B rejects the token from the unapproved client.
 
 External RHBK also checks the incoming assertion's `azp=agent-a-internal`. This check identifies the internal client that created the assertion. The T3 token identifies the client authenticated at External RHBK. The [external realm policy](../realms/external.json) and [Agent B handler](../agents/server.py) implement these checks.
 

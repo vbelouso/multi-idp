@@ -1,6 +1,6 @@
 # Running the Lab
 
-Run these commands from the `multi-idp/` repository root. Live validation uses the OpenShift context selected by the OpenShift command-line interface (`oc`). The lab runs two Red Hat build of Keycloak (RHBK) instances. Their realm issuer Uniform Resource Locators (URLs) identify the authorization servers. They use Open Authorization (OAuth) 2.0.
+Run these commands from the `multi-idp/` repository root. Live validation uses the cluster selected by the OpenShift command-line interface (`oc`). The lab runs two Red Hat build of Keycloak (RHBK) instances. Each realm issuer Uniform Resource Locator (URL) identifies its authorization server. The flow uses OAuth 2.0.
 
 ## Preparing the Workstation and Cluster
 
@@ -38,12 +38,12 @@ Keycloak imports a realm only when its database is empty. Applying changed realm
 
 The following command deletes both lab namespaces, including database claims and generated credentials. The storage system's reclaim policy determines whether it deletes the database volumes. A new installation generates new credentials, including console passwords.
 
-Keep the approved subject file so bootstrap can recreate the intended identity links. Delete old evidence and deploy the lab with these commands:
+Keep the approved subject file so bootstrap can recreate the intended identity links. Clear the old reports and generated dashboards, then deploy the lab with these commands:
 
 ```bash
 oc delete namespace multi-idp-internal multi-idp-external --ignore-not-found --wait=true
 mkdir -p evidence
-find evidence -mindepth 1 -maxdepth 1 -type f -delete
+find evidence -mindepth 1 -type f -delete
 ./deploy.sh
 ```
 
@@ -59,7 +59,7 @@ The `--reset` option recreates both databases while preserving namespace Secrets
 .venv/bin/python tests/run.py reset
 ```
 
-Before deleting database claims, the deployment script copies `evidence/installation.json` to `installation-before-reset.json`. The reset check requires new PersistentVolumeClaim (PVC) identities and signing keys. It also checks stable issuer URLs, completed bootstrap, and matching realm revisions. Keep the baseline until the comparison finishes.
+Before deleting database claims, the deployment script copies `evidence/installation.json` to `evidence/installation-before-reset.json`. The reset check requires new PersistentVolumeClaim (PVC) identities and signing keys. It also checks stable issuer URLs and completed bootstrap. Keep the baseline until the comparison finishes.
 
 ## Running Validation
 
@@ -67,7 +67,7 @@ Sign in to Red Hat Single Sign-On shortly before the run. Obtain a new, unused s
 
 - The issuer is `https://sso.stage.redhat.com/auth/realms/redhat-external`, the audience is `cloud-services`, and the payload type is `ID`.
 - At runner preflight, the token has at least five minutes before expiration.
-- The token's `iat` is no more than 15 minutes before T1 issuance. Its `auth_time` is within 15 minutes before T1 issuance.
+- Internal RHBK must issue the first access token (T1) within 15 minutes after the RH SSO token's `iat`. The token's `auth_time` must also be within 15 minutes before T1 issuance.
 
 Refreshing a long-running browser session can produce a new token with an old `auth_time`. A later evidence check can still reject that token. Reuse after a successful grant can also trigger replay rejection, even if a previous run failed later.
 
@@ -89,7 +89,7 @@ The runner supports the following phases:
 | Full acceptance | `.venv/bin/python tests/run.py` | Run the primary flow, 20 named regression tests, and the combined audit |
 | Reset comparison | `.venv/bin/python tests/run.py reset` | Check installations and compare them with the pre-reset baseline |
 
-Use a new ID token for every primary or full acceptance run. The regression tests use separate OAuth fixtures and administrative credentials. Some tests temporarily modify lab settings and restore them after each test.
+Use a new ID token for every primary or full acceptance run. The regression tests use direct OAuth grants and resource-server requests. The runner uses administrative credentials to configure and inspect them. Some tests temporarily modify lab settings and restore them after each test.
 
 Normal acceptance does not require reset evidence. If `reset.json` is absent, the runner records `resetValidation: "not-run"`. If the report exists, the audit checks that it matches the current installation.
 
@@ -120,6 +120,24 @@ The primary checks have short identifiers in the reports. The flow guide lists t
 
 An early failure can leave partial evidence. An installation pass does not prove that Agent A called Agents B and C. Check the primary report and combined audit when they exist. Clearing local evidence does not reset Keycloak state or its assertion replay cache.
 
+## Viewing the Evidence Dashboard
+
+Generate a dashboard for the newest audit report with this command:
+
+```bash
+python3 generate_dashboard.py
+```
+
+The generator selects the newest `audit-*.json` file by modification time and writes a self-contained HTML file under `evidence/dashboards/`. Open the printed path in a browser. The generated directory is ignored by Git, and the generator does not modify the audit report.
+
+To use a specific report, provide its path and an output path:
+
+```bash
+python3 generate_dashboard.py evidence/audit-RUN_ID.json --output evidence/dashboards/custom.html
+```
+
+You can also select **Open another audit file** in the dashboard to inspect a different report without generating another HTML file.
+
 ## Opening the Admin Consoles
 
 Retrieve each Keycloak route hostname with these commands:
@@ -140,32 +158,41 @@ Each instance has a different password. After you sign in, select the `internal`
 
 ## Watching Setup and Diagnosing Failures
 
-Follow each bootstrap Job to review approval checks, identity links, protected attributes, administrative setup, and final verification:
+Use manifest labels to select bootstrap, Keycloak, and agent Pods. The selectors avoid generated Pod names. If a stream ends during a rollout, rerun the command to select the replacement Pod:
 
 ```bash
-oc logs -f job/realm-bootstrap-v4 -n multi-idp-internal
-oc logs -f job/realm-bootstrap-v4 -n multi-idp-external
+oc logs -f -l app=bootstrap --all-pods --tail=-1 --pod-running-timeout=5m \
+-c bootstrap -n multi-idp-internal
+oc logs -f -l app=bootstrap --all-pods --tail=-1 --pod-running-timeout=5m \
+-c bootstrap -n multi-idp-external
 ```
 
 Keycloak logs report startup, realm import, and grant errors. Agent logs report each request stage and its request ID. Follow the Keycloak and agent logs with these commands:
 
 ```bash
-oc logs -f deployment/rhbk -n multi-idp-internal
-oc logs -f deployment/rhbk -n multi-idp-external
-oc logs -f deployment/agent-a -c agent -n multi-idp-internal
-oc logs -f deployment/agent-c -c agent -n multi-idp-internal
-oc logs -f deployment/agent-b -c agent -n multi-idp-external
+oc logs -f -l app=rhbk --all-pods --tail=-1 -c rhbk \
+-n multi-idp-internal
+oc logs -f -l app=rhbk --all-pods --tail=-1 -c rhbk \
+-n multi-idp-external
+oc logs -f -l app=agent-a --all-pods --tail=-1 -c agent \
+-n multi-idp-internal
+oc logs -f -l app=agent-c --all-pods --tail=-1 -c agent \
+-n multi-idp-internal
+oc logs -f -l app=agent-b --all-pods --tail=-1 -c agent \
+-n multi-idp-external
 ```
 
-Agent A logs each stage: ID token validation, the internal grant, token exchanges, the external grant, and calls to Agents C and B. Correlate a rejected request's ID and time with the matching Keycloak event. A Hypertext Transfer Protocol (HTTP) 403 response from Agent A can indicate that an upstream grant failed.
+Agent A logs each stage: ID token validation, the internal grant, token exchanges, the external grant, and calls to Agents C and B. Correlate a rejected request's ID and time with the matching Keycloak event. A 403 response from Agent A can indicate that an upstream grant failed.
 
-During a rollout, list Agent A pods and inspect the newest pod:
+To inspect package-install logs, select the `dependencies` init container on each agent:
 
 ```bash
-oc get pods -l app=agent-a -n multi-idp-internal --sort-by=.metadata.creationTimestamp
-oc logs -f pod/<newest-pod-name> -c agent -n multi-idp-internal
+oc logs -l app=agent-a --all-pods --tail=-1 -c dependencies \
+-n multi-idp-internal
+oc logs -l app=agent-c --all-pods --tail=-1 -c dependencies \
+-n multi-idp-internal
+oc logs -l app=agent-b --all-pods --tail=-1 -c dependencies \
+-n multi-idp-external
 ```
-
-The `dependencies` init container logs package installation. For Agent C, use its label in the internal namespace. For Agent B, use `app=agent-b` in `multi-idp-external`.
 
 [Documentation index](INDEX.md).
