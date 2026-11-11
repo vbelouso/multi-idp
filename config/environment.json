@@ -1,0 +1,15 @@
+{
+  "domain": "apps.cn-ai-lab.2vn8.p1.openshiftapps.com",
+  "instances": {
+    "internal": {
+      "namespace": "multi-idp-internal",
+      "hostname": "multi-idp-internal.apps.cn-ai-lab.2vn8.p1.openshiftapps.com",
+      "realm": "internal"
+    },
+    "external": {
+      "namespace": "multi-idp-external",
+      "hostname": "multi-idp-external.apps.cn-ai-lab.2vn8.p1.openshiftapps.com",
+      "realm": "partner"
+    }
+  }
+}

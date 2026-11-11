@@ -1,0 +1,313 @@
+{
+  "method": "Mapped from docs/INDEX.md and relevant sections of docs/keycloak.md; no local checkout path supplied. Direct tagged upstream files; no search-engine discovery. Tests inspected, not executed.",
+  "tag": "26.8.2",
+  "records": [
+    {
+      "url": "https://raw.githubusercontent.com/keycloak/keycloak/26.8.2/docs/guides/securing-apps/jwt-authorization-grant.adoc",
+      "sha256": "2562c0e2ffa9e2c09becab0c56311d901e75dc1fa858b7e27b9b4d832db641e9",
+      "selected_navigation_excerpts": [
+        {
+          "line": 28,
+          "text": "{project_name} requires the `sub` claim in the assertion to be the user identifier in the external provider. The {project_name} user should be previously linked to the Identity Provider. This way there is a link between the external and the internal user ID."
+        },
+        {
+          "line": 35,
+          "text": ". The claim `sub` (subject) should identify the user in {project_name}. As commented, the `sub` claim needs to be the ID of the user in the external provider. The user in {project_name} should be linked to the Identity Provider. The linking information will finally locate the user in {project_name}."
+        },
+        {
+          "line": 36,
+          "text": ". The claim `aud` (audience) should identify the {project_name} server (issuer or token endpoint URL) and must contain only a single value. For security reasons and in line with recent OIDC recommendations, {project_name} rejects JWTs with multiple values in the `aud` claim."
+        },
+        {
+          "line": 43,
+          "text": "== Configuration"
+        },
+        {
+          "line": 80,
+          "text": "== Examples"
+        },
+        {
+          "line": 134,
+          "text": "NOTE: Following the spec recommendation, the JWT Authorization Grant never issues a refresh token and a link:{adminguide_link}#_transient-session[transient session] is always created. The access token can be used normally in {project_name} through the introspection, user-info or any other endpoint. It will be valid until expired or explicitly revoked by the revocation endpoint."
+        },
+        {
+          "line": 136,
+          "text": "== How to get a valid token for JWT Authorization Grant"
+        },
+        {
+          "line": 145,
+          "text": ". For `domainb`, `domaina` is an Identity Provider that is used to validate the assertion. The user in `domainb` is also a valid user previously linked to `domaina` via the identity provider."
+        },
+        {
+          "line": 149,
+          "text": "== Client policies and JWT Authorization Grant"
+        },
+        {
+          "line": 161,
+          "text": "== JWT Authorization Grant for Google Identity Provider"
+        },
+        {
+          "line": 183,
+          "text": "<3> Subject that must be linked to the {project_name} user."
+        }
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/keycloak/keycloak/26.8.2/docs/guides/securing-apps/oauth-identity-authorization-chaining-across-domains.adoc",
+      "sha256": "ad6dad9a286a9b992459b708aaca7010defb3e0838b998779a27bc91fa3e2292",
+      "selected_navigation_excerpts": [
+        {
+          "line": 29,
+          "text": "{project_name} can implement OAuth Identity and Authorization Chaining Across Domains between two different realms or servers by combining the following supported features:"
+        },
+        {
+          "line": 36,
+          "text": "== Overview of the complete flow"
+        },
+        {
+          "line": 44,
+          "text": "== Step 1: Configure Token Exchange in `domaina`"
+        },
+        {
+          "line": 50,
+          "text": "=== 1.1 Create a client that represents `domainb`"
+        },
+        {
+          "line": 63,
+          "text": "=== 1.2 Create a client scope to grant access to `domainb`"
+        },
+        {
+          "line": 84,
+          "text": "NOTE: This example allows any user to request that client scope. Roles can be used to restrict the scope of the client scope. This way only users with a specific role would be allowed to add the `domainb` audience."
+        },
+        {
+          "line": 86,
+          "text": "=== 1.3 Create a client to perform the Token Exchange"
+        },
+        {
+          "line": 103,
+          "text": "=== 1.4 Create a sample user"
+        },
+        {
+          "line": 108,
+          "text": "=== 1.5 Test Token Exchange"
+        },
+        {
+          "line": 124,
+          "text": "Now `clienta` can exchange the token, including scope `access-domainb`, and restricting the audience to `http://localhost:8080/realms/domainb` (issuer of `domainb`)."
+        },
+        {
+          "line": 144,
+          "text": "== Step 2: Configure JWT Authorization Grant in `domainb`"
+        },
+        {
+          "line": 150,
+          "text": "=== 2.1 Create an OpenID Connect Identity Provider for `domaina`"
+        },
+        {
+          "line": 166,
+          "text": "=== 2.2 Create a client to perform the JWT Authorization Grant"
+        },
+        {
+          "line": 179,
+          "text": "=== 2.3 Link the sample user in `domainb`"
+        },
+        {
+          "line": 181,
+          "text": "To test the JWT Authorization Grant, the sample user created in `domaina` should be linked in `domainb`. You can just access to the account page in `domainb`:"
+        },
+        {
+          "line": 187,
+          "text": "* Check in **Account security** -> **Linked accounts** that the user is correctly linked to `domaina`."
+        },
+        {
+          "line": 189,
+          "text": "=== 2.4 Test JWT Authorization Grant"
+        }
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/keycloak/keycloak/26.8.2/tests/base/src/test/java/org/keycloak/tests/oauth/JWTAuthorizationGrantTest.java",
+      "sha256": "b124cae34a3e99a681cce5b54467a139e5de7c1c6ef0e0fb6ae36569bf018923",
+      "selected_navigation_excerpts": []
+    },
+    {
+      "url": "https://raw.githubusercontent.com/keycloak/keycloak/26.8.2/tests/base/src/test/java/org/keycloak/tests/oauth/AbstractJWTAuthorizationGrantTest.java",
+      "sha256": "e98abb076b29e3c8b7ec379ff65770b2f1af4d47e6246bd112b47d5c09d9a7e6",
+      "selected_navigation_excerpts": [
+        {
+          "line": 52,
+          "text": "    public void testPublicClient() {"
+        },
+        {
+          "line": 61,
+          "text": "    public void testIdpNotAllowedForClient() {"
+        },
+        {
+          "line": 70,
+          "text": "    public void testNotAllowedClient() {"
+        },
+        {
+          "line": 79,
+          "text": "    public void testMissingAssertionParameter() {"
+        },
+        {
+          "line": 85,
+          "text": "    public void testBadAssertionParameter() {"
+        },
+        {
+          "line": 91,
+          "text": "    public void testExpiredAssertion() {"
+        },
+        {
+          "line": 131,
+          "text": "    public void testAudience() {"
+        },
+        {
+          "line": 171,
+          "text": "    public void testBadIssuer() {"
+        },
+        {
+          "line": 183,
+          "text": "    public void testBadSubject() {"
+        },
+        {
+          "line": 190,
+          "text": "        EventAssertion event =  assertFailure(\"User not found\", response, events.poll());"
+        },
+        {
+          "line": 193,
+          "text": "        event.details(Details.IDENTITY_PROVIDER_USER_ID, \"fake-user\");"
+        },
+        {
+          "line": 197,
+          "text": "    public void testReplayToken() {"
+        },
+        {
+          "line": 218,
+          "text": "    public void testSignatureAlg() {"
+        },
+        {
+          "line": 235,
+          "text": "    public void testInvalidSignature() {"
+        },
+        {
+          "line": 247,
+          "text": "    public void testSignatureWithNoneAlgorithm() {"
+        },
+        {
+          "line": 262,
+          "text": "    public void testValidateSignatureFixedKey() {"
+        },
+        {
+          "line": 276,
+          "text": "    public void testValidateSignatureFixedKeyAndKeyId() {"
+        },
+        {
+          "line": 292,
+          "text": "    public void testValidateSignatureFixedKeyUsingJwks() {"
+        },
+        {
+          "line": 305,
+          "text": "    public void testScope() {"
+        },
+        {
+          "line": 323,
+          "text": "    public void textLimitAccessTokenExpiration() {"
+        },
+        {
+          "line": 339,
+          "text": "    public void testSuccessGrant() {"
+        },
+        {
+          "line": 346,
+          "text": "    public void testDisabledIdentityProvider() {"
+        },
+        {
+          "line": 357,
+          "text": "    public void testUserDisabled() {"
+        },
+        {
+          "line": 364,
+          "text": "        assertFailure(\"User is not enabled\", response, events.poll());"
+        },
+        {
+          "line": 371,
+          "text": "    public void testUserWithRequiredAction() {"
+        },
+        {
+          "line": 386,
+          "text": "    public void testCustomAudiences() throws Exception {"
+        },
+        {
+          "line": 427,
+          "text": "    public void testHS256AlgorithmConfusion() {"
+        },
+        {
+          "line": 436,
+          "text": "    public void testHS256AlgorithmConfusionWithHardcodedPublicKey() {"
+        },
+        {
+          "line": 452,
+          "text": "    public void testHS256AlgorithmConfusionWithHardcodedJWKS() throws IOException {"
+        },
+        {
+          "line": 475,
+          "text": "    public void testInvalidSignatureDoesNotConsumeJti() {"
+        },
+        {
+          "line": 500,
+          "text": "    public void testConsentRequiredIsRejected() {"
+        },
+        {
+          "line": 524,
+          "text": "    public void testConsentRequiredWithGrantedConsentSucceeds() {"
+        }
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/keycloak/keycloak/26.8.2/tests/base/src/test/java/org/keycloak/tests/oauth/JWTAuthorizationGrantDownscopeClientPoliciesTest.java",
+      "sha256": "b06dc3e70d06658df6c6b3bb080d700efa89037734c39ca013627a6d7a8b0fa2",
+      "selected_navigation_excerpts": [
+        {
+          "line": 32,
+          "text": "    public void testDownscope() throws Exception {"
+        }
+      ]
+    },
+    {
+      "url": "https://raw.githubusercontent.com/keycloak/keycloak/26.8.2/services/src/main/java/org/keycloak/protocol/oidc/grants/JWTAuthorizationGrantType.java",
+      "sha256": "ead1048185fadb6d7cce6971cdc5945a30c507ae6023c6a07acd6ee7ece62c91",
+      "selected_navigation_excerpts": [
+        {
+          "line": 103,
+          "text": "            event.detail(Details.IDENTITY_PROVIDER_USER_ID, authorizationGrantContext.getSubject());"
+        },
+        {
+          "line": 148,
+          "text": "            UserModel user = lookupUserByFederatedIdentity(federatedIdentityModel, clientAssertionState);"
+        },
+        {
+          "line": 150,
+          "text": "                throw new RuntimeException(\"User not found\");"
+        },
+        {
+          "line": 153,
+          "text": "                throw new RuntimeException(\"User is not enabled\");"
+        },
+        {
+          "line": 188,
+          "text": "            AuthenticationSessionModel authSession = createSessionModel(rootAuthSession, user, client, scopeParam);"
+        },
+        {
+          "line": 211,
+          "text": "    protected UserModel lookupUserByFederatedIdentity(FederatedIdentityModel federatedIdentityModel, ClientAssertionState clientAssertionState) {"
+        },
+        {
+          "line": 215,
+          "text": "    protected AuthenticationSessionModel createSessionModel(RootAuthenticationSessionModel rootAuthSession, UserModel targetUser, ClientModel client, String scope) {"
+        }
+      ]
+    }
+  ]
+}

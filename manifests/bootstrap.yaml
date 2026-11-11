@@ -1,0 +1,147 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: realm-bootstrap-v4
+  namespace: multi-idp-internal
+  labels:
+    app: bootstrap
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app: bootstrap
+    spec:
+      serviceAccountName: bootstrap
+      restartPolicy: Never
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: bootstrap
+        image: registry.redhat.io/rhbk/keycloak-rhel9@sha256:91937e38d3507d29a4bc5898a77abda62a204b508c77c730cd0bc745dcdb0d03
+        command:
+        - /bin/bash
+        - /config/bootstrap.sh
+        env:
+        - name: BASE_URL
+          value: https://multi-idp-internal.apps.cn-ai-lab.2vn8.p1.openshiftapps.com
+        - name: REALM
+          value: internal
+        - name: REVISION
+          value: b77b4a4abdd1bda8d725f89ff1f6d594acef90c918828b013d11532dc19c0273
+        - name: INITIAL_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: console-admin
+              key: password
+        - name: PROVISIONER_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: credentials
+              key: provisioner-secret
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+        volumeMounts:
+        - name: config
+          mountPath: /config
+          readOnly: true
+        - name: work
+          mountPath: /work
+        - name: approval
+          mountPath: /approval
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: realm-bootstrap
+      - name: approval
+        secret:
+          secretName: approved-pilot
+      - name: work
+        emptyDir:
+          medium: Memory
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: realm-bootstrap-v4
+  namespace: multi-idp-external
+  labels:
+    app: bootstrap
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 600
+  template:
+    metadata:
+      labels:
+        app: bootstrap
+    spec:
+      serviceAccountName: bootstrap
+      restartPolicy: Never
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: bootstrap
+        image: registry.redhat.io/rhbk/keycloak-rhel9@sha256:91937e38d3507d29a4bc5898a77abda62a204b508c77c730cd0bc745dcdb0d03
+        command:
+        - /bin/bash
+        - /config/bootstrap.sh
+        env:
+        - name: BASE_URL
+          value: https://multi-idp-external.apps.cn-ai-lab.2vn8.p1.openshiftapps.com
+        - name: REALM
+          value: partner
+        - name: REVISION
+          value: b77b4a4abdd1bda8d725f89ff1f6d594acef90c918828b013d11532dc19c0273
+        - name: INITIAL_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: console-admin
+              key: password
+        - name: PROVISIONER_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: credentials
+              key: provisioner-secret
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 50m
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+        volumeMounts:
+        - name: config
+          mountPath: /config
+          readOnly: true
+        - name: work
+          mountPath: /work
+        - name: approval
+          mountPath: /approval
+          readOnly: true
+      volumes:
+      - name: config
+        configMap:
+          name: realm-bootstrap
+      - name: approval
+        secret:
+          secretName: approved-pilot
+      - name: work
+        emptyDir:
+          medium: Memory

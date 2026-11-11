@@ -1,0 +1,42 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+- manifests/internal-keycloak.yaml
+- manifests/external-keycloak.yaml
+- manifests/bootstrap.yaml
+- manifests/agents.yaml
+configMapGenerator:
+- name: realm-definition
+  namespace: multi-idp-internal
+  files:
+  - internal-realm.json=realms/internal.json
+- name: realm-bootstrap
+  namespace: multi-idp-internal
+  files:
+  - profile.json=realms/user-profile.json
+  - bootstrap.sh=realms/bootstrap.sh
+- name: realm-definition
+  namespace: multi-idp-external
+  files:
+  - partner-realm.json=realms/external.json
+- name: realm-bootstrap
+  namespace: multi-idp-external
+  files:
+  - profile.json=realms/user-profile.json
+  - bootstrap.sh=realms/bootstrap.sh
+- name: agent-code
+  namespace: multi-idp-external
+  files:
+  - server.py=agents/server.py
+  - agent_a.py=agents/agent_a.py
+  - security.py=agents/security.py
+  - requirements.txt
+- name: agent-code
+  namespace: multi-idp-internal
+  files:
+  - server.py=agents/server.py
+  - agent_a.py=agents/agent_a.py
+  - security.py=agents/security.py
+  - requirements.txt
+generatorOptions:
+  disableNameSuffixHash: true

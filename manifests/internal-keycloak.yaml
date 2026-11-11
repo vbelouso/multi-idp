@@ -1,0 +1,407 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: multi-idp-internal
+  labels:
+    app.kubernetes.io/part-of: multi-idp-poc
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: database
+  namespace: multi-idp-internal
+spec:
+  podSelector:
+    matchLabels:
+      app: database
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: rhbk
+    ports:
+    - protocol: TCP
+      port: 5432
+  egress: []
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: rhbk
+  namespace: multi-idp-internal
+spec:
+  podSelector:
+    matchLabels:
+      app: rhbk
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          network.openshift.io/policy-group: ingress
+    ports:
+    - protocol: TCP
+      port: 8443
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: database
+    ports:
+    - protocol: TCP
+      port: 5432
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openshift-dns
+    ports:
+    - protocol: UDP
+      port: 5353
+    - protocol: TCP
+      port: 5353
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          network.openshift.io/policy-group: ingress
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 8443
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.128.0.0/14
+        - 172.30.0.0/16
+    ports:
+    - protocol: TCP
+      port: 443
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rhbk
+  namespace: multi-idp-internal
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: database
+  namespace: multi-idp-internal
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: database
+  namespace: multi-idp-internal
+spec:
+  ports:
+  - name: postgres
+    port: 5432
+  selector:
+    app: database
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rhbk
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: rhbk-tls
+  namespace: multi-idp-internal
+spec:
+  ports:
+  - name: https
+    port: 8443
+    targetPort: https
+  selector:
+    app: rhbk
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rhbk
+  namespace: multi-idp-internal
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: rhbk
+  template:
+    metadata:
+      labels:
+        app: rhbk
+    spec:
+      serviceAccountName: rhbk
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: rhbk
+        image: registry.redhat.io/rhbk/keycloak-rhel9@sha256:91937e38d3507d29a4bc5898a77abda62a204b508c77c730cd0bc745dcdb0d03
+        args:
+        - start
+        - --import-realm
+        env:
+        - name: KC_DB
+          value: postgres
+        - name: KC_DB_URL
+          value: jdbc:postgresql://database:5432/keycloak
+        - name: KC_DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: database
+              key: username
+        - name: KC_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: database
+              key: password
+        - name: KC_BOOTSTRAP_ADMIN_USERNAME
+          value: console-admin
+        - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: console-admin
+              key: password
+        - name: KC_HOSTNAME
+          value: https://multi-idp-internal.apps.cn-ai-lab.2vn8.p1.openshiftapps.com
+        - name: KC_HTTPS_CERTIFICATE_FILE
+          value: /tls/tls.crt
+        - name: KC_HTTPS_CERTIFICATE_KEY_FILE
+          value: /tls/tls.key
+        - name: KC_HTTP_ENABLED
+          value: 'false'
+        - name: KC_PROXY_HEADERS
+          value: xforwarded
+        - name: KC_HEALTH_ENABLED
+          value: 'true'
+        - name: KC_HTTP_MANAGEMENT_SCHEME
+          value: http
+        - name: KC_CACHE
+          value: local
+        - name: KC_FEATURES
+          value: jwt-authorization-grant,token-exchange-standard:v2
+        - name: KC_LOG_LEVEL
+          value: INFO
+        - name: PROVISIONER_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: credentials
+              key: provisioner-secret
+        - name: AGENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: credentials
+              key: agent-secret
+        - name: OTHER_AGENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: credentials
+              key: other-agent-secret
+        - name: REVISION
+          value: b77b4a4abdd1bda8d725f89ff1f6d594acef90c918828b013d11532dc19c0273
+        - name: UPSTREAM_ISSUER
+          value: https://sso.stage.redhat.com/auth/realms/redhat-external
+        - name: UPSTREAM_JWKS
+          value: https://sso.stage.redhat.com/auth/realms/redhat-external/protocol/openid-connect/certs
+        - name: ASSERTION_ALGORITHM
+          value: RS256
+        - name: MAX_ASSERTION_LIFETIME
+          value: '3600'
+        - name: INTERNAL_ISSUER
+          value: https://multi-idp-internal.apps.cn-ai-lab.2vn8.p1.openshiftapps.com/realms/internal
+        - name: EXTERNAL_ISSUER
+          value: https://multi-idp-external.apps.cn-ai-lab.2vn8.p1.openshiftapps.com/realms/partner
+        - name: INTERNAL_JWKS
+          value: https://multi-idp-internal.apps.cn-ai-lab.2vn8.p1.openshiftapps.com/realms/internal/protocol/openid-connect/certs
+        ports:
+        - name: https
+          containerPort: 8443
+        - name: management
+          containerPort: 9000
+        startupProbe:
+          httpGet:
+            path: /health/started
+            port: management
+          failureThreshold: 90
+          periodSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: management
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: management
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            memory: 2Gi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: tls
+          mountPath: /tls
+          readOnly: true
+        - name: realm
+          mountPath: /opt/keycloak/data/import
+          readOnly: true
+      volumes:
+      - name: tls
+        secret:
+          secretName: rhbk-tls
+      - name: realm
+        configMap:
+          name: realm-definition
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: database
+  namespace: multi-idp-internal
+spec:
+  serviceName: database
+  replicas: 1
+  selector:
+    matchLabels:
+      app: database
+  template:
+    metadata:
+      labels:
+        app: database
+    spec:
+      serviceAccountName: database
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+      - name: postgres
+        image: registry.redhat.io/rhel9/postgresql-16@sha256:18c881e262861c94e59de14b4723c635acc5c5d82ce59297341a2feebc3ab05e
+        env:
+        - name: POSTGRESQL_DATABASE
+          value: keycloak
+        - name: POSTGRESQL_USER
+          valueFrom:
+            secretKeyRef:
+              name: database
+              key: username
+        - name: POSTGRESQL_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: database
+              key: password
+        ports:
+        - containerPort: 5432
+        readinessProbe:
+          exec:
+            command:
+            - /usr/libexec/check-container
+          initialDelaySeconds: 10
+        livenessProbe:
+          tcpSocket:
+            port: 5432
+          initialDelaySeconds: 30
+        resources:
+          requests:
+            cpu: 100m
+            memory: 256Mi
+          limits:
+            memory: 512Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        volumeMounts:
+        - name: data
+          mountPath: /var/lib/pgsql/data
+  volumeClaimTemplates:
+  - metadata:
+      name: data
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      storageClassName: gp3
+      resources:
+        requests:
+          storage: 1Gi
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: rhbk
+  namespace: multi-idp-internal
+spec:
+  host: multi-idp-internal.apps.cn-ai-lab.2vn8.p1.openshiftapps.com
+  to:
+    kind: Service
+    name: rhbk
+  port:
+    targetPort: https
+  tls:
+    termination: reencrypt
+    insecureEdgeTerminationPolicy: Redirect
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: bootstrap
+  namespace: multi-idp-internal
+spec:
+  podSelector:
+    matchLabels:
+      app: bootstrap
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress: []
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openshift-dns
+    ports:
+    - protocol: UDP
+      port: 5353
+    - protocol: TCP
+      port: 5353
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          network.openshift.io/policy-group: ingress
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 8443
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.128.0.0/14
+        - 172.30.0.0/16
+    ports:
+    - protocol: TCP
+      port: 443
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: bootstrap
+  namespace: multi-idp-internal
+automountServiceAccountToken: false

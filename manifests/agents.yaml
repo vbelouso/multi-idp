@@ -1,0 +1,584 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: agent-b
+  namespace: multi-idp-external
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-b
+  namespace: multi-idp-external
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: agent-b-tls
+spec:
+  selector:
+    app: agent-b
+  ports:
+  - name: https
+    port: 8443
+    targetPort: https
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: agent-b
+  namespace: multi-idp-external
+spec:
+  host: agent-b.apps.cn-ai-lab.2vn8.p1.openshiftapps.com
+  to:
+    kind: Service
+    name: agent-b
+  port:
+    targetPort: https
+  tls:
+    termination: reencrypt
+    insecureEdgeTerminationPolicy: Redirect
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-b
+  namespace: multi-idp-external
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-b
+  template:
+    metadata:
+      labels:
+        app: agent-b
+    spec:
+      serviceAccountName: agent-b
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+      - name: dependencies
+        image: registry.access.redhat.com/ubi9/python-312@sha256:f72227ffc4f3faa3772a6ae91ffc03bcf3c507d6b7a525d2bfe90b3579dcb8af
+        command:
+        - python3
+        - -m
+        - pip
+        - install
+        - --no-cache-dir
+        - --target
+        - /deps
+        - -r
+        - /app/requirements.txt
+        volumeMounts:
+        - &id001
+          name: app
+          mountPath: /app
+          readOnly: true
+        - &id002
+          name: deps
+          mountPath: /deps
+        securityContext: &id003
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+      containers:
+      - name: agent
+        image: registry.access.redhat.com/ubi9/python-312@sha256:f72227ffc4f3faa3772a6ae91ffc03bcf3c507d6b7a525d2bfe90b3579dcb8af
+        command:
+        - python3
+        - /app/server.py
+        - --agent
+        - agent-b
+        env:
+        - name: PYTHONPATH
+          value: /deps
+        - name: PUBLIC_URL
+          value: https://agent-b.apps.cn-ai-lab.2vn8.p1.openshiftapps.com
+        - name: EXPECTED_ISSUER
+          value: https://multi-idp-external.apps.cn-ai-lab.2vn8.p1.openshiftapps.com/realms/partner
+        ports:
+        - name: https
+          containerPort: 8443
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: https
+            scheme: HTTPS
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: https
+            scheme: HTTPS
+          initialDelaySeconds: 10
+        volumeMounts:
+        - *id001
+        - *id002
+        - name: tls
+          mountPath: /tls
+          readOnly: true
+        securityContext: *id003
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+      volumes:
+      - name: app
+        configMap:
+          name: agent-code
+      - name: deps
+        emptyDir: {}
+      - name: tls
+        secret:
+          secretName: agent-b-tls
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: agent-b
+  namespace: multi-idp-external
+spec:
+  podSelector:
+    matchLabels:
+      app: agent-b
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          network.openshift.io/policy-group: ingress
+    ports:
+    - protocol: TCP
+      port: 8443
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openshift-dns
+    ports:
+    - protocol: UDP
+      port: 5353
+    - protocol: TCP
+      port: 5353
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          network.openshift.io/policy-group: ingress
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 8443
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.128.0.0/14
+        - 172.30.0.0/16
+    ports:
+    - protocol: TCP
+      port: 443
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: agent-c
+  namespace: multi-idp-internal
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-c
+  namespace: multi-idp-internal
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: agent-c-tls
+spec:
+  selector:
+    app: agent-c
+  ports:
+  - name: https
+    port: 8443
+    targetPort: https
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: agent-c
+  namespace: multi-idp-internal
+spec:
+  host: agent-c.apps.cn-ai-lab.2vn8.p1.openshiftapps.com
+  to:
+    kind: Service
+    name: agent-c
+  port:
+    targetPort: https
+  tls:
+    termination: reencrypt
+    insecureEdgeTerminationPolicy: Redirect
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-c
+  namespace: multi-idp-internal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-c
+  template:
+    metadata:
+      labels:
+        app: agent-c
+    spec:
+      serviceAccountName: agent-c
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+      - name: dependencies
+        image: registry.access.redhat.com/ubi9/python-312@sha256:f72227ffc4f3faa3772a6ae91ffc03bcf3c507d6b7a525d2bfe90b3579dcb8af
+        command:
+        - python3
+        - -m
+        - pip
+        - install
+        - --no-cache-dir
+        - --target
+        - /deps
+        - -r
+        - /app/requirements.txt
+        volumeMounts:
+        - &id001
+          name: app
+          mountPath: /app
+          readOnly: true
+        - &id002
+          name: deps
+          mountPath: /deps
+        securityContext: &id003
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+      containers:
+      - name: agent
+        image: registry.access.redhat.com/ubi9/python-312@sha256:f72227ffc4f3faa3772a6ae91ffc03bcf3c507d6b7a525d2bfe90b3579dcb8af
+        command:
+        - python3
+        - /app/server.py
+        - --agent
+        - agent-c
+        env:
+        - name: PYTHONPATH
+          value: /deps
+        - name: PUBLIC_URL
+          value: https://agent-c.apps.cn-ai-lab.2vn8.p1.openshiftapps.com
+        - name: EXPECTED_ISSUER
+          value: https://multi-idp-internal.apps.cn-ai-lab.2vn8.p1.openshiftapps.com/realms/internal
+        ports:
+        - name: https
+          containerPort: 8443
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: https
+            scheme: HTTPS
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: https
+            scheme: HTTPS
+          initialDelaySeconds: 10
+        volumeMounts:
+        - *id001
+        - *id002
+        - name: tls
+          mountPath: /tls
+          readOnly: true
+        securityContext: *id003
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+      volumes:
+      - name: app
+        configMap:
+          name: agent-code
+      - name: deps
+        emptyDir: {}
+      - name: tls
+        secret:
+          secretName: agent-c-tls
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: agent-c
+  namespace: multi-idp-internal
+spec:
+  podSelector:
+    matchLabels:
+      app: agent-c
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          network.openshift.io/policy-group: ingress
+    ports:
+    - protocol: TCP
+      port: 8443
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openshift-dns
+    ports:
+    - protocol: UDP
+      port: 5353
+    - protocol: TCP
+      port: 5353
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          network.openshift.io/policy-group: ingress
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 8443
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.128.0.0/14
+        - 172.30.0.0/16
+    ports:
+    - protocol: TCP
+      port: 443
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: agent-a
+  namespace: multi-idp-internal
+automountServiceAccountToken: false
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: agent-a
+  namespace: multi-idp-internal
+  annotations:
+    service.beta.openshift.io/serving-cert-secret-name: agent-a-tls
+spec:
+  selector:
+    app: agent-a
+  ports:
+  - name: https
+    port: 8443
+    targetPort: https
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: agent-a
+  namespace: multi-idp-internal
+spec:
+  host: agent-a.apps.cn-ai-lab.2vn8.p1.openshiftapps.com
+  to:
+    kind: Service
+    name: agent-a
+  port:
+    targetPort: https
+  tls:
+    termination: reencrypt
+    insecureEdgeTerminationPolicy: Redirect
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: agent-a
+  namespace: multi-idp-internal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: agent-a
+  template:
+    metadata:
+      labels:
+        app: agent-a
+    spec:
+      serviceAccountName: agent-a
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+      - name: dependencies
+        image: registry.access.redhat.com/ubi9/python-312@sha256:f72227ffc4f3faa3772a6ae91ffc03bcf3c507d6b7a525d2bfe90b3579dcb8af
+        command:
+        - python3
+        - -m
+        - pip
+        - install
+        - --no-cache-dir
+        - --target
+        - /deps
+        - -r
+        - /app/requirements.txt
+        volumeMounts:
+        - &id001
+          name: app
+          mountPath: /app
+          readOnly: true
+        - &id002
+          name: deps
+          mountPath: /deps
+        securityContext: &id003
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            memory: 512Mi
+      containers:
+      - name: agent
+        image: registry.access.redhat.com/ubi9/python-312@sha256:f72227ffc4f3faa3772a6ae91ffc03bcf3c507d6b7a525d2bfe90b3579dcb8af
+        command:
+        - python3
+        - /app/server.py
+        - --agent
+        - agent-a
+        env:
+        - name: PYTHONPATH
+          value: /deps
+        - name: PUBLIC_URL
+          value: https://agent-a.apps.cn-ai-lab.2vn8.p1.openshiftapps.com
+        - name: INTERNAL_ISSUER
+          value: https://multi-idp-internal.apps.cn-ai-lab.2vn8.p1.openshiftapps.com/realms/internal
+        - name: EXTERNAL_ISSUER
+          value: https://multi-idp-external.apps.cn-ai-lab.2vn8.p1.openshiftapps.com/realms/partner
+        - name: AGENT_C_URL
+          value: https://agent-c.apps.cn-ai-lab.2vn8.p1.openshiftapps.com
+        - name: AGENT_B_URL
+          value: https://agent-b.apps.cn-ai-lab.2vn8.p1.openshiftapps.com
+        - name: EXPECTED_ISSUER
+          value: https://multi-idp-internal.apps.cn-ai-lab.2vn8.p1.openshiftapps.com/realms/internal
+        ports:
+        - name: https
+          containerPort: 8443
+        readinessProbe:
+          httpGet:
+            path: /healthz
+            port: https
+            scheme: HTTPS
+        livenessProbe:
+          httpGet:
+            path: /healthz
+            port: https
+            scheme: HTTPS
+          initialDelaySeconds: 10
+        volumeMounts:
+        - *id001
+        - *id002
+        - name: clients
+          mountPath: /clients
+          readOnly: true
+        - name: tls
+          mountPath: /tls
+          readOnly: true
+        securityContext: *id003
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+      volumes:
+      - name: app
+        configMap:
+          name: agent-code
+      - name: deps
+        emptyDir: {}
+      - name: clients
+        secret:
+          secretName: agent-a-clients
+      - name: tls
+        secret:
+          secretName: agent-a-tls
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: agent-a
+  namespace: multi-idp-internal
+spec:
+  podSelector:
+    matchLabels:
+      app: agent-a
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          network.openshift.io/policy-group: ingress
+    ports:
+    - protocol: TCP
+      port: 8443
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: openshift-dns
+    ports:
+    - protocol: UDP
+      port: 5353
+    - protocol: TCP
+      port: 5353
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          network.openshift.io/policy-group: ingress
+    ports:
+    - protocol: TCP
+      port: 443
+    - protocol: TCP
+      port: 8443
+  - to:
+    - ipBlock:
+        cidr: 0.0.0.0/0
+        except:
+        - 10.128.0.0/14
+        - 172.30.0.0/16
+    ports:
+    - protocol: TCP
+      port: 443
