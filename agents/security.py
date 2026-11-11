@@ -35,10 +35,22 @@ def valid_provenance(claims):
             and claims.get("provenance_version") == "1")
 
 
+def subject_label(claims):
+    """Map pilot subjects to safe, human-readable identity roles."""
+    if claims.get("iss") == RH_ISSUER:
+        return "approved RH SSO user"
+    if claims.get("sub") == INTERNAL_SUB:
+        return "Internal Keycloak pilot user"
+    if claims.get("sub") == EXTERNAL_SUB:
+        return "External Keycloak pilot user"
+    return "unclassified user"
+
+
 def summary(token, claims):
     return {"sha256": hashlib.sha256(token.encode()).hexdigest(),
             "jti": claims["jti"], "issuer": claims["iss"],
             "subjectSha256": hashlib.sha256(claims["sub"].encode()).hexdigest(),
+            "subjectLabel": subject_label(claims),
             "audience": claims.get("aud"), "expires": claims["exp"], "issuedAt": claims["iat"],
             "authenticationTime": claims.get("auth_time"),
             "azp": claims.get("azp"), "scope": claims.get("scope", ""),

@@ -26,6 +26,68 @@ from security import (EXTERNAL_SUB, INTERNAL_SUB, access_token,
 
 NAMESPACES = {"internal": "multi-idp-internal", "external": "multi-idp-external"}
 
+TEST_DETAILS = {
+    "P1": {"name": "RH assertion to internal token", "description":
+           "Agent A presents the approved RH SSO ID token to Internal Keycloak and receives T1 for the internal pilot user."},
+    "P2": {"name": "Internal to external token chain", "description":
+           "Agent A uses internal T1 to obtain T2, then presents T2 to External Keycloak to obtain T3 for Agent B."},
+    "P3": {"name": "Agent A calls external Agent B", "description":
+           "Agent A sends an A2A identity-check request to B with T3; B validates the External Keycloak token and returns identity evidence."},
+    "P4": {"name": "Approved identity provenance", "description":
+           "Correlates the approved RH user, internal and external pilot users, Agent A clients, agent logs, Keycloak events, and unchanged preconfigured trust."},
+    "P5": {"name": "External client authorization policy", "description":
+           "Checks that External Keycloak grants the configured pilot authority and that Agent B rejects an unapproved OAuth client; see N5–N8."},
+    "P6": {"name": "Agent A calls internal Agent C", "description":
+           "Agent A exchanges T1 for a token targeted to C, sends an A2A identity-check request, and C validates its Internal Keycloak token."},
+    "N1": {"name": "B rejects internal tokens", "description":
+           "Send internal T1 and T2 to Agent B and verify its external-issuer validation rejects both."},
+    "N2": {"name": "B rejects a wrong audience", "description":
+           "Issue a token with an audience other than Agent B and verify B rejects the A2A request."},
+    "N3": {"name": "Unconfigured issuer is not trusted", "description":
+           "Verify a token from an issuer without configured external trust cannot obtain a grant; removing the provider also blocks the grant."},
+    "N4": {"name": "Missing identity links do not create users", "description":
+           "Remove each pilot federation link in turn and verify grants fail without automatically creating an account."},
+    "N5": {"name": "Disabled external user cannot get a grant", "description":
+           "Disable the external pilot account and verify External Keycloak denies the authorization grant."},
+    "N6": {"name": "Removing the external role blocks new use", "description":
+           "Remove the Agent B role, verify a newly issued token is rejected, and confirm an already issued token remains valid until expiry."},
+    "N7": {"name": "Disabled client settings block grants", "description":
+           "Individually disable the external client, its JWT grant capability, and its allowed provider; verify each grant is denied."},
+    "N8": {"name": "B rejects an unapproved OAuth client", "description":
+           "Obtain an Agent B audience token with the unapproved client and verify B rejects it based on the authorized client identity."},
+    "N9": {"name": "Expired assertions and tokens are rejected", "description":
+           "Wait until a short-lived external grant assertion and Agent B access token expire, then verify the grant and A2A request fail."},
+    "N10": {"name": "Invalid signatures and algorithms are rejected", "description":
+           "Verify grant processing rejects altered signatures, unknown signing keys, unsigned tokens, and an unapproved algorithm."},
+    "N11": {"name": "Invalid signed provenance is rejected", "description":
+           "Remove required origin data or set an inconsistent internal-user mapping, then verify Agent B rejects each signed token."},
+    "N12": {"name": "Runtime tokens cannot edit trust", "description":
+           "Use an access token to attempt provenance, federation-link, role, and mapper changes; verify each edit is denied and data is unchanged."},
+    "N13": {"name": "A2A metadata cannot replace identity", "description":
+           "Send forged identity and client fields in A2A metadata and verify B reports the authenticated token claims instead."},
+    "N14": {"name": "JWT grant assertion replay is rejected", "description":
+           "Use one T2 assertion for a successful grant, replay it, and verify the second grant is denied."},
+    "N15": {"name": "Wrong and multiple audiences are rejected", "description":
+           "Verify grants reject a token for another audience and a token carrying more than one audience."},
+    "N16": {"name": "Unapproved internal client cannot cross domains", "description":
+           "Create an internal assertion under the unapproved client and verify External Keycloak rejects it with an authorized-client policy error."},
+    "N17": {"name": "Requested scopes cannot expand authority", "description":
+           "Request extra scopes at both authorization servers and verify they are denied or excluded from issued authority."},
+    "N18": {"name": "Missing consent blocks external grant", "description":
+           "Remove the pilot client's preapproved consent, verify the grant fails, then restore consent and verify the configured grant works."},
+    "N19": {"name": "Alternate pilot login paths are disabled", "description":
+           "Check interactive, direct-access, service-account, password, and client-credentials paths cannot authenticate either pilot client/user."},
+    "N20": {"name": "Unsupported protected A2A operation is denied", "description":
+           "Send a valid Agent B token for an unsupported protected operation and verify B denies it without processing the operation."},
+}
+
+TOKEN_FIELD_GLOSSARY = {
+    "sha256": "SHA-256 fingerprint of the complete compact token; it is not a user identifier.",
+    "subjectSha256": "SHA-256 fingerprint of the issuer-local subject (sub); it can correlate tokens from the same issuer without exposing sub.",
+    "subjectLabel": "Human-readable role for the subject represented by this token summary.",
+    "azp": "OAuth client that obtained the token; in these results it identifies Agent A's client separately from the user.",
+}
+
 def command(*args, data=None, check=True):
     result = subprocess.run(args, input=data, text=True, capture_output=True)
     if check and result.returncode:
@@ -281,11 +343,11 @@ def run_flow():
               "installations": json.loads((ROOT / "evidence/installation.json").read_text())["instances"],
               "rh": summary(raw, rh), "trustUnchanged": True, "runtimeAdminEvents": mutations,
               "agentA": {"response": response, **evidence},
-              "tests": {"P1": {"status": "pass", "t1": tokens["t1"]},
-                        "P2": {"status": "pass", "t2": tokens["t2"], "t3": tokens["t3"]}}}
+              "tests": {"P1": {**TEST_DETAILS["P1"], "status": "pass", "t1": tokens["t1"]},
+                        "P2": {**TEST_DETAILS["P2"], "status": "pass", "t2": tokens["t2"], "t3": tokens["t3"]}}}
     a2a = {"runId": run, "sdkVersion": "1.3.0", "protocolVersion": "1.0",
-           "tests": {"P3": {"status": "pass", **output["downstream"]["agent-b"]},
-                     "P6": {"status": "pass", **output["downstream"]["agent-c"]}},
+           "tests": {"P3": {**TEST_DETAILS["P3"], "status": "pass", **output["downstream"]["agent-b"]},
+                     "P6": {**TEST_DETAILS["P6"], "status": "pass", **output["downstream"]["agent-c"]}},
            "tc": tokens["tc"], "t3": tokens["t3"], "agentARequestId": evidence["request"]["id"]}
     private_json("session.json", {"runId": run})
     (ROOT / "evidence" / f"flow-{run}.json").write_text(json.dumps(report, indent=2) + "\n")
@@ -372,7 +434,8 @@ class Suite:
 
     def run(self, name, action):
         start = int(time.time() * 1000)
-        context = {"testId": name, "utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        context = {"testId": name, **TEST_DETAILS[name],
+                   "utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
                    "nonce": str(uuid.uuid4()), "operation": action.__name__}
         try:
             evidence = action()
@@ -757,21 +820,35 @@ def audit():
     reset = json.loads((ROOT / "evidence/reset.json").read_text())
     checks, independent = primary_checks(flow, a2a)
     tests = {**flow["tests"], **a2a["tests"], **negative["tests"]}
-    tests["P4"] = {"status": "pass" if all(checks.values()) else "fail", "checks": checks,
+    tests["P4"] = {**TEST_DETAILS["P4"], "status": "pass" if all(checks.values()) else "fail", "checks": checks,
                    "approvedRecordVersion": "1",
                    "independentEvents": independent,
                    "guarantee": "Trusted transitive provenance correlated to this controlled run; B verifies only the external signature."}
-    tests["P5"] = {"status": "pass" if all(tests.get(case, {}).get("status") == "pass" for case in ["N5", "N6", "N7", "N8"]) else "fail",
+    tests["P5"] = {**TEST_DETAILS["P5"],
+                   "status": "pass" if all(tests.get(case, {}).get("status") == "pass" for case in ["N5", "N6", "N7", "N8"]) else "fail",
                    "evidenceCases": ["N5", "N6", "N7", "N8"],
                    "existingTokenBehavior": "Local JWT verification honors issued authority until token expiry."}
+    for test_id, result in tests.items():
+        if test_id in TEST_DETAILS:
+            result.update(TEST_DETAILS[test_id])
     required = {"M1": ["P1", "P2", "N3", "N4", "N7", "N9", "N10", "N14", "N15"],
                 "M2": ["P3", "P6", "N1", "N2", "N9", "N13", "N20"],
                 "M3": ["P4", "P5", "N5", "N6", "N8", "N11", "N12", "N16", "N17", "N18", "N19"]}
-    milestones = {name: {"status": "pass" if all(tests.get(case, {}).get("status") == "pass" for case in cases) else "fail",
+    milestone_details = {
+        "M1": {"name": "Token issuance and trust boundaries", "description":
+               "Covers internal and external grant issuance, approved trust, and token validation negatives."},
+        "M2": {"name": "A2A agent communication", "description":
+               "Covers Agent A calling C and B with target-appropriate tokens and rejection of invalid downstream requests."},
+        "M3": {"name": "Identity and authorization policy", "description":
+               "Covers trusted transitive identity evidence, external client authorization, and policy boundaries."},
+    }
+    milestones = {name: {**milestone_details[name],
+                         "status": "pass" if all(tests.get(case, {}).get("status") == "pass" for case in cases) else "fail",
                          "requiredTests": cases} for name, cases in required.items()}
     report = {"runId": run, "utc": datetime.datetime.now(datetime.timezone.utc).isoformat(),
               "sdkVersion": a2a["sdkVersion"], "protocolVersion": a2a["protocolVersion"],
-              "installations": installation["instances"], "tests": tests, "milestones": milestones,
+              "installations": installation["instances"], "tokenFieldGlossary": TOKEN_FIELD_GLOSSARY,
+              "tests": tests, "milestones": milestones,
               "milestonesComplete": all(m["status"] == "pass" for m in milestones.values())
                   and all(tests.get(f"N{n}", {}).get("status") == "pass" for n in range(1, 21))}
     environment_checks = {"installationIndependence": all(installation["independence"].values()),

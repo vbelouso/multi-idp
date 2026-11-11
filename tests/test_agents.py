@@ -3,6 +3,7 @@
 These tests exercise protocol and policy boundaries, not live Keycloak behavior.
 """
 import datetime
+import importlib.util
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 import os
@@ -32,6 +33,10 @@ import server
 from agent_a import AgentAHandler
 
 APPROVED_RH = "approved-rh-fixture"
+
+RUNNER_SPEC = importlib.util.spec_from_file_location("multi_idp_runner", ROOT / "tests/run.py")
+RUNNER = importlib.util.module_from_spec(RUNNER_SPEC)
+RUNNER_SPEC.loader.exec_module(RUNNER)
 
 
 def signed(key, kid, issuer, subject, audience, **extra):
@@ -253,6 +258,32 @@ class AgentTests(unittest.TestCase):
 
 
 class ProvenanceTests(unittest.TestCase):
+    def test_token_summary_labels_pilot_identity_without_raw_subject(self):
+        cases = [
+            (security.RH_ISSUER, APPROVED_RH, "approved RH SSO user"),
+            ("https://internal.example/realms/internal", security.INTERNAL_SUB,
+             "Internal Keycloak pilot user"),
+            ("https://external.example/realms/partner", security.EXTERNAL_SUB,
+             "External Keycloak pilot user"),
+        ]
+        for issuer, subject, expected in cases:
+            with self.subTest(label=expected):
+                claims = {"iss": issuer, "sub": subject, "jti": "test-jti",
+                          "exp": 2000000000, "iat": 1900000000}
+                result = security.summary("test-token", claims)
+                self.assertEqual(result["subjectLabel"], expected)
+                self.assertNotIn(subject, json.dumps(result))
+
+
+class AuditDescriptionTests(unittest.TestCase):
+    def test_every_positive_and_negative_case_has_a_name_and_description(self):
+        test_ids = [f"P{n}" for n in range(1, 7)] + [f"N{n}" for n in range(1, 21)]
+        for test_id in test_ids:
+            with self.subTest(test_id=test_id):
+                details = RUNNER.TEST_DETAILS[test_id]
+                self.assertTrue(details["name"].strip())
+                self.assertTrue(details["description"].strip())
+
     def test_required_signed_mapping_values(self):
         claims = {"origin_issuer": security.RH_ISSUER, "origin_sub": APPROVED_RH,
                   "internal_sub": security.INTERNAL_SUB, "provenance_version": "1"}
