@@ -1,18 +1,18 @@
-# Cross-IdP Agent PoC
+# Agent Calls Across Identity Providers
 
-A disposable lab demonstrating Agent-to-Agent (A2A) calls across two independent Red Hat build of Keycloak authorization domains.
+This disposable lab shows Agent-to-Agent (A2A) calls across two separate Red Hat build of Keycloak (RHBK) authorization domains.
 
-Internal Agent A acts for an approved Red Hat SSO user. It calls internal Agent C and external Agent B with tokens issued for each destination. The agents return identity evidence so the user and OAuth client can be traced through the flow.
+Internal Agent A acts for an approved Red Hat Single Sign-On user. It calls internal Agent C and external Agent B with tokens made for each target. The agents return identity evidence that distinguishes the user from the Open Authorization (OAuth) clients used by Agent A.
 
-## Documentation
+## Project Documentation
 
 Start with the [overview and documentation index](docs/INDEX.md).
 
-| Topic | What it explains |
+| Topic | Description |
 | --- | --- |
-| [What We Build](docs/architecture.md) | Components, Keycloak realms, clients, and bootstrap responsibilities |
-| [Identity And Agent Flow](docs/flow.md) | Each OAuth step, token, and A2A call |
-| [Running The Lab](docs/operations.md) | Deployment, clean rebuilds, tests, console access, and logs |
-| [OAuth And Identity Concepts](docs/concepts.md) | Realm URL audiences, identity approval, provenance, and replay protection |
+| [What We Build](docs/architecture.md) | Components, realms, clients, and setup |
+| [Identity and Agent Flow](docs/flow.md) | Token exchanges and agent calls |
+| [Running the Lab](docs/operations.md) | Deployment, validation, consoles, and logs |
+| [Authorization and Identity Concepts](docs/concepts.md) | Realm issuer audiences, approval, provenance, and replay protection |
 
-Deployment definitions live in [manifests/](manifests/), realm configuration in [realms/](realms/), agent applications in [agents/](agents/), and validation in [tests/](tests/).
+Deployment definitions are in [manifests/](manifests/). Realm configuration is in [realms/](realms/). Agent applications are in [agents/](agents/). Validation code is in [tests/](tests/).
